@@ -5,45 +5,31 @@ globs: **/*.tsx, **/*.jsx
 
 # Zone14 - Frontend React Rules (Glob: **/*.tsx, **/*.jsx)
 
-Questa regola si applica automaticamente a tutti i file React/TypeScript del progetto.
+## ⚛️ Component Structure
 
----
-
-## ⚛️ React 19 Standards
-
-### Component Structure
 ```tsx
-// resources/js/Pages/Players/Show.tsx
-import { Head, usePage } from '@inertiajs/react';
+import { Head } from '@inertiajs/react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import type { Player, Team } from '@/types';
 
 interface Props {
   player: Player;
   team: Team;
-  stats: PlayerStats; // Deferred prop
+  stats: PlayerStats; // Deferred
 }
 
 export default function PlayerShow({ player, team, stats }: Props) {
   return (
     <>
-      <Head title={`${player.firstName} ${player.lastName}`} />
-      
-      <div className="container mx-auto py-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>{player.fullName}</CardTitle>
-            <Badge variant={player.isActive ? 'success' : 'secondary'}>
-              {player.isActive ? 'Active' : 'Inactive'}
-            </Badge>
-          </CardHeader>
-          
-          <CardContent>
-            <PlayerStatsSection stats={stats} />
-          </CardContent>
-        </Card>
-      </div>
+      <Head title={player.fullName} />
+      <Card>
+        <CardHeader>
+          <CardTitle>{player.fullName}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <PlayerStatsSection stats={stats} />
+        </CardContent>
+      </Card>
     </>
   );
 }
@@ -51,134 +37,34 @@ export default function PlayerShow({ player, team, stats }: Props) {
 
 ---
 
-## 📝 Forms & Actions (NO useState manual)
+## 📝 Forms (NO useState)
 
-### Standard Form Pattern
 ```tsx
 import { useForm } from '@inertiajs/react';
-import { FormEventHandler } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 
-interface CreatePlayerFormProps {
-  teamId: string;
-}
-
-export default function CreatePlayerForm({ teamId }: CreatePlayerFormProps) {
-  const { data, setData, post, processing, errors, reset } = useForm({
+export default function CreatePlayerForm({ teamId }: Props) {
+  const { data, setData, post, processing, errors } = useForm({
     firstName: '',
     lastName: '',
-    birthDate: '',
-    position: '',
     teamId,
   });
 
-  const submit: FormEventHandler = (e) => {
+  const submit = (e: FormEvent) => {
     e.preventDefault();
-    post(route('players.store'), {
-      onSuccess: () => reset(),
-      onError: () => {
-        // Error handling automatico via errors object
-      },
-    });
+    post(route('players.store'));
   };
 
   return (
-    <form onSubmit={submit} className="space-y-4">
-      <div>
-        <Label htmlFor="firstName">First Name</Label>
-        <Input
-          id="firstName"
-          value={data.firstName}
-          onChange={(e) => setData('firstName', e.target.value)}
-          disabled={processing}
-          aria-invalid={!!errors.firstName}
-          aria-describedby={errors.firstName ? 'firstName-error' : undefined}
-        />
-        {errors.firstName && (
-          <p id="firstName-error" className="text-sm text-destructive mt-1">
-            {errors.firstName}
-          </p>
-        )}
-      </div>
-
-      <div>
-        <Label htmlFor="lastName">Last Name</Label>
-        <Input
-          id="lastName"
-          value={data.lastName}
-          onChange={(e) => setData('lastName', e.target.value)}
-          disabled={processing}
-        />
-        {errors.lastName && (
-          <p className="text-sm text-destructive mt-1">{errors.lastName}</p>
-        )}
-      </div>
-
-      <div>
-        <Label htmlFor="birthDate">Birth Date</Label>
-        <Input
-          id="birthDate"
-          type="date"
-          value={data.birthDate}
-          onChange={(e) => setData('birthDate', e.target.value)}
-          disabled={processing}
-        />
-        {errors.birthDate && (
-          <p className="text-sm text-destructive mt-1">{errors.birthDate}</p>
-        )}
-      </div>
-
-      <Button type="submit" disabled={processing}>
-        {processing ? 'Creating...' : 'Create Player'}
-      </Button>
-    </form>
-  );
-}
-```
-
-### React 19 Actions (Complex Forms)
-```tsx
-import { useActionState } from 'react';
-import { router } from '@inertiajs/react';
-
-export default function PlayerRegistrationForm() {
-  const [state, formAction, isPending] = useActionState(
-    async (prevState: any, formData: FormData) => {
-      const data = Object.fromEntries(formData);
-      
-      // Validation client-side
-      if (!data.email || !data.firstName) {
-        return { errors: { email: 'Email required', firstName: 'First name required' } };
-      }
-      
-      try {
-        await router.post('/players', data, {
-          preserveScroll: true,
-          onSuccess: () => {
-            // Reset handled by router
-          },
-        });
-        return { success: true };
-      } catch (error) {
-        return { errors: { submit: 'Registration failed' } };
-      }
-    },
-    null
-  );
-
-  return (
-    <form action={formAction}>
-      <input name="email" type="email" disabled={isPending} />
-      {state?.errors?.email && <span>{state.errors.email}</span>}
-      
-      <input name="firstName" disabled={isPending} />
-      {state?.errors?.firstName && <span>{state.errors.firstName}</span>}
-      
-      <button type="submit" disabled={isPending}>
-        {isPending ? 'Registering...' : 'Register'}
-      </button>
+    <form onSubmit={submit}>
+      <Input
+        value={data.firstName}
+        onChange={(e) => setData('firstName', e.target.value)}
+        disabled={processing}
+      />
+      {errors.firstName && <span>{errors.firstName}</span>}
+      <Button type="submit" disabled={processing}>Create</Button>
     </form>
   );
 }
@@ -186,77 +72,53 @@ export default function PlayerRegistrationForm() {
 
 ---
 
-## 🔄 Deferred Props & Polling
+## 🔄 Deferred Props
 
-### Heavy Data Loading
 ```tsx
 import { Deferred } from '@inertiajs/react';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { TeamStatistics } from '@/types';
 
 interface Props {
   teamId: string;
-  statistics: TeamStatistics; // Marcato come Deferred in controller
+  statistics: TeamStatistics; // Marked as Deferred in controller
 }
 
-export default function TeamDashboard({ teamId, statistics }: Props) {
+export default function Dashboard({ statistics }: Props) {
   return (
-    <div className="grid grid-cols-3 gap-4">
-      <Deferred data="statistics" fallback={<StatisticsSkeleton />}>
-        {(stats) => (
-          <>
-            <StatCard title="Goals Scored" value={stats.goalsScored} />
-            <StatCard title="Goals Conceded" value={stats.goalsConceded} />
-            <StatCard title="Win Rate" value={`${stats.winRate}%`} />
-          </>
-        )}
-      </Deferred>
-    </div>
-  );
-}
-
-function StatisticsSkeleton() {
-  return (
-    <>
-      <Skeleton className="h-32 w-full" />
-      <Skeleton className="h-32 w-full" />
-      <Skeleton className="h-32 w-full" />
-    </>
+    <Deferred data="statistics" fallback={<Skeleton className="h-32" />}>
+      {(stats) => (
+        <div>
+          <StatCard title="Goals" value={stats.goals} />
+          <StatCard title="Wins" value={stats.wins} />
+        </div>
+      )}
+    </Deferred>
   );
 }
 ```
 
-### Live Match Updates
+---
+
+## 📡 Live Updates (Polling)
+
 ```tsx
 import { usePoll } from '@inertiajs/react';
-import type { Match, MatchEvent } from '@/types';
 
 interface Props {
   match: Match;
   events: MatchEvent[];
 }
 
-export default function LiveMatchCenter({ match, events }: Props) {
-  // Poll ogni 3 secondi per aggiornare score ed eventi
+export default function LiveMatch({ match, events }: Props) {
+  // Poll every 3 seconds
   usePoll(3000, {
     only: ['match.homeScore', 'match.awayScore', 'events'],
-    keepAliveProp: 'match.status',
-    keepAliveValue: 'in_progress',
   });
 
   return (
-    <div className="live-match">
-      <div className="scoreboard">
-        <TeamScore team={match.homeTeam} score={match.homeScore} />
-        <span className="text-2xl font-bold">-</span>
-        <TeamScore team={match.awayTeam} score={match.awayScore} />
-      </div>
-
-      <div className="events-timeline mt-8">
-        {events.map((event) => (
-          <MatchEventCard key={event.id} event={event} />
-        ))}
-      </div>
+    <div>
+      <Scoreboard match={match} />
+      <EventsList events={events} />
     </div>
   );
 }
@@ -264,183 +126,57 @@ export default function LiveMatchCenter({ match, events }: Props) {
 
 ---
 
-## 🎨 Shadcn UI Integration
+## 🎨 Shadcn UI
 
-### Component Import Pattern
 ```tsx
-// ❌ NON fare import relativi complessi
-import { Button } from '../../../components/ui/button';
-
-// ✅ Usa path alias configurato
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
-import { useToast } from '@/hooks/use-toast';
-```
 
-### Custom Variants (nel file componente)
-```tsx
-// resources/js/components/ui/button.tsx
-import * as React from 'react';
-import { Slot } from '@radix-ui/react-slot';
-import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from '@/lib/utils';
-
-const buttonVariants = cva(
-  'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors',
-  {
-    variants: {
-      variant: {
-        default: 'bg-primary text-primary-foreground hover:bg-primary/90',
-        destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
-        outline: 'border border-input bg-background hover:bg-accent',
-        // Custom variant per Zone14
-        sport: 'bg-sport-primary text-white hover:bg-sport-primary/80',
-      },
-      size: {
-        default: 'h-10 px-4 py-2',
-        sm: 'h-9 rounded-md px-3',
-        lg: 'h-11 rounded-md px-8',
-        icon: 'h-10 w-10',
-      },
+// Custom variant (in component file)
+const buttonVariants = cva('...', {
+  variants: {
+    variant: {
+      default: 'bg-primary',
+      sport: 'bg-sport-primary text-white', // Custom
     },
-    defaultVariants: {
-      variant: 'default',
-      size: 'default',
-    },
-  }
-);
-
-export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
-  asChild?: boolean;
-}
-
-const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
-    const Comp = asChild ? Slot : 'button';
-    return (
-      <Comp
-        className={cn(buttonVariants({ variant, size, className }))}
-        ref={ref}
-        {...props}
-      />
-    );
-  }
-);
-Button.displayName = 'Button';
-
-export { Button, buttonVariants };
+  },
+});
 ```
 
 ---
 
-## 🗂️ TypeScript Types & Interfaces
+## 🗂️ TypeScript Types
 
-### Inertia Props Types
 ```typescript
-// resources/js/types/index.ts
-
-// Base Models
 export interface Player {
   id: string;
   firstName: string;
   lastName: string;
-  fullName: string; // Property hook from backend
+  fullName: string; // Property hook
   birthDate: string;
   position: string;
-  jerseyNumber: number;
   isActive: boolean;
   teamId: string;
   metadata: PlayerMetadata;
-  createdAt: string;
-  updatedAt: string;
 }
 
 export interface PlayerMetadata {
   height?: number;
   weight?: number;
   preferredFoot?: 'left' | 'right' | 'both';
-  skills?: string[];
 }
 
-export interface Team {
-  id: string;
-  name: string;
-  logoUrl: string | null;
-  foundedYear: number;
-  stadium: string;
-}
-
-export interface Match {
-  id: string;
-  homeTeamId: string;
-  awayTeamId: string;
-  homeTeam: Team;
-  awayTeam: Team;
-  homeScore: number;
-  awayScore: number;
-  status: 'scheduled' | 'in_progress' | 'finished' | 'cancelled';
-  kickoffAt: string;
-  endedAt: string | null;
-}
-
-// Page Props (generici Inertia)
 export interface PageProps {
-  auth: {
-    user: User;
-  };
-  ziggy: {
-    location: string;
-    query: Record<string, any>;
-  };
+  auth: { user: User };
   flash: {
     success?: string;
     error?: string;
-    warning?: string;
   };
-}
-
-// Estensioni per pagine specifiche
-export interface PlayersIndexProps extends PageProps {
-  players: Player[];
-  filters: {
-    search?: string;
-    position?: string;
-    isActive?: boolean;
-  };
-  pagination: PaginationMeta;
-}
-
-export interface PaginationMeta {
-  currentPage: number;
-  lastPage: number;
-  perPage: number;
-  total: number;
-}
-```
-
-### Shared Type Guards
-```typescript
-// resources/js/lib/type-guards.ts
-
-export function isMatchInProgress(match: Match): boolean {
-  return match.status === 'in_progress';
-}
-
-export function isPlayerEligible(player: Player): boolean {
-  return player.isActive && player.metadata.medicalClearance === true;
-}
-
-export function hasPermission(user: User, permission: string): boolean {
-  return user.permissions.includes(permission);
 }
 ```
 
@@ -450,20 +186,17 @@ export function hasPermission(user: User, permission: string): boolean {
 
 ### Database Setup
 ```typescript
-// resources/js/lib/db.ts
 import Dexie, { type EntityTable } from 'dexie';
 
 interface MatchEvent {
   id: string;
   matchId: string;
-  playerId: string;
-  type: 'goal' | 'assist' | 'card' | 'substitution';
-  minute: number;
+  type: 'goal' | 'card';
   synced: boolean;
   createdAt: Date;
 }
 
-const db = new Dexie('Zone14Database') as Dexie & {
+const db = new Dexie('Zone14') as Dexie & {
   matchEvents: EntityTable<MatchEvent, 'id'>;
 };
 
@@ -472,29 +205,131 @@ db.version(1).stores({
 });
 
 export { db };
-export type { MatchEvent };
 ```
 
-### Sync Queue Pattern
+### Sync Queue
 ```typescript
-// resources/js/lib/sync-queue.ts
 import { router } from '@inertiajs/react';
 import { db } from './db';
 
-export async function recordMatchEvent(
-  matchId: string,
-  eventData: Omit<MatchEvent, 'id' | 'synced' | 'createdAt'>
-) {
-  // 1. Write to IndexedDB immediately
-  const eventId = await db.matchEvents.add({
+export async function recordEvent(matchId: string, eventData: any) {
+  // 1. Write to IndexedDB
+  const id = await db.matchEvents.add({
     ...eventData,
     matchId,
     synced: false,
     createdAt: new Date(),
   });
 
-  // 2. Update UI optimistically
-  // (React query mutation or state update)
+  // 2. Background sync
+  syncEvent(id);
+}
 
-  // 3. Background sync
-  syncMatchEven
+async function syncEvent(id: string) {
+  const event = await db.matchEvents.get(id);
+  if (!event || event.synced) return;
+
+  try {
+    await router.post(`/matches/${event.matchId}/events`, event, {
+      onSuccess: async () => {
+        await db.matchEvents.update(id, { synced: true });
+      },
+    });
+  } catch {
+    setTimeout(() => syncEvent(id), 5000); // Retry
+  }
+}
+```
+
+### Component
+```tsx
+import { db } from '@/lib/db';
+import { recordEvent } from '@/lib/sync-queue';
+
+export default function MatchLogger({ matchId }: Props) {
+  const handleGoal = async (playerId: string) => {
+    await recordEvent(matchId, {
+      playerId,
+      type: 'goal',
+      minute: getCurrentMinute(),
+    });
+  };
+
+  return <Button onClick={() => handleGoal('player-123')}>Goal</Button>;
+}
+```
+
+---
+
+## 🎯 Performance
+
+### NO useMemo/useCallback (React 19)
+```tsx
+// ❌ Not needed
+const value = useMemo(() => expensive(a, b), [a, b]);
+
+// ✅ Compiler handles it
+const value = expensive(a, b);
+```
+
+### Lazy Loading
+```tsx
+import { lazy, Suspense } from 'react';
+
+const Chart = lazy(() => import('@/components/Chart'));
+
+<Suspense fallback={<Skeleton />}>
+  <Chart data={data} />
+</Suspense>
+```
+
+---
+
+## ♿ Accessibility
+
+```tsx
+<Button
+  aria-label="Add player"
+  aria-pressed={isExpanded}
+  aria-controls="player-form"
+>
+  <PlusIcon aria-hidden="true" />
+  Add
+</Button>
+
+<ul role="listbox" aria-label="Players">
+  <li role="option" tabIndex={0} onKeyDown={handleKey}>
+    Player Name
+  </li>
+</ul>
+```
+
+---
+
+## 🧪 Testing
+
+```tsx
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+
+test('submits form', async () => {
+  const user = userEvent.setup();
+  render(<CreatePlayerForm />);
+
+  await user.type(screen.getByLabelText(/name/i), 'John');
+  await user.click(screen.getByRole('button', { name: /create/i }));
+
+  expect(router.post).toHaveBeenCalled();
+});
+```
+
+---
+
+## 🚫 Anti-Patterns
+
+❌ **NO**: `useState` for forms, `useMemo`/`useCallback` manual, `tailwind.config.js`, direct API calls
+✅ **YES**: `useForm` from Inertia, React 19 compiler, CSS `@theme`, Dexie → sync queue
+
+---
+
+**Caratteri: ~4,200** | **Target**: React 19 + Inertia 2.0 + TypeScript + Shadcn
