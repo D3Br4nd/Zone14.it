@@ -1,0 +1,245 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/frankenphp/Dockerfile
+      args:
+        WWWUSER: '${WWWUSER:-1000}'
+        WWWGROUP: '${WWWGROUP:-1000}'
+    image: zone14-backend
+    container_name: zone14-${APP_ENV:-dev}-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      WWWUSER: '${WWWUSER:-1000}'
+      WWWGROUP: '${WWWGROUP:-1000}'
+      DB_CONNECTION: pgsql
+      DB_HOST: '${DB_HOST:-postgres}'
+      DB_PORT: '${DB_PORT:-5432}'
+      REDIS_HOST: '${REDIS_HOST:-redis}'
+      REDIS_PORT: '${REDIS_PORT:-6379}'
+      VITE_HMR_HOST: localhost
+    volumes:
+      - ./src:/app
+      - ./docker/entrypoint.sh:/usr/local/bin/entrypoint.sh:ro
+      - ./data/storage/tenants:/app/storage/tenants
+      - ./docker/frankenphp/conf.d/custom.ini:/usr/local/etc/php/conf.d/custom.ini
+    entrypoint: ["/usr/local/bin/entrypoint.sh"]
+    command: php artisan octane:frankenphp --host=0.0.0.0 --port=8000 --admin-port=2019
+    networks:
+      - internal
+      - external
+    extra_hosts:
+      - "mail.debrandstudio.it:host-gateway"
+    depends_on:
+      init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/up"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
+
+  postgres:
+    image: postgres:18.1
+    container_name: zone14-${APP_ENV:-dev}-postgres
+    restart: unless-stopped
+    ports:
+      - '${FORWARD_DB_PORT:-5432}:5432'
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: '${DB_DATABASE:-zone14}'
+      POSTGRES_USER: '${DB_USERNAME:-zone14}'
+      POSTGRES_PASSWORD: '${DB_PASSWORD:-secret}'
+      PGDATA: /var/lib/postgresql/data
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    networks:
+      - internal
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "pg_isready", "-q", "-d", "${DB_DATABASE:-zone14}", "-U", "${DB_USERNAME:-zone14}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:8.4.0
+    container_name: zone14-${APP_ENV:-dev}-redis
+    restart: unless-stopped
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    env_file:
+      - .env
+    volumes:
+      - ./data/redis:/data
+    networks:
+      - internal
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  vite:
+    image: node:22-alpine
+    container_name: zone14-${APP_ENV:-dev}-vite
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host"
+    env_file:
+      - .env
+    environment:
+      VITE_HMR_HOST: localhost
+    volumes:
+      - ./src:/app
+    networks:
+      - internal
+    user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
+    depends_on:
+      backend:
+        condition: service_started
+
+  queue:
+    build:
+      context: .
+      dockerfile: docker/frankenphp/Dockerfile
+      args:
+        WWWUSER: '${WWWUSER:-1000}'
+        WWWGROUP: '${WWWGROUP:-1000}'
+    image: zone14-backend
+    container_name: zone14-${APP_ENV:-dev}-queue
+    restart: unless-stopped
+    entrypoint: ["/usr/local/bin/entrypoint.sh"]
+    command: php artisan queue:work --tries=3 --timeout=90
+    env_file:
+      - .env
+    volumes:
+      - ./src:/app
+      - ./docker/entrypoint.sh:/usr/local/bin/entrypoint.sh:ro
+      - ./data/storage/tenants:/app/storage/tenants
+      - ./docker/frankenphp/conf.d/custom.ini:/usr/local/etc/php/conf.d/custom.ini
+    networks:
+      - internal
+    depends_on:
+      init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: docker/frankenphp/Dockerfile
+      args:
+        WWWUSER: '${WWWUSER:-1000}'
+        WWWGROUP: '${WWWGROUP:-1000}'
+    image: zone14-backend
+    container_name: zone14-${APP_ENV:-dev}-scheduler
+    restart: unless-stopped
+    entrypoint: ["/usr/local/bin/entrypoint.sh"]
+    command: php artisan schedule:work
+    env_file:
+      - .env
+    volumes:
+      - ./src:/app
+      - ./docker/entrypoint.sh:/usr/local/bin/entrypoint.sh:ro
+      - ./data/storage/tenants:/app/storage/tenants
+      - ./docker/frankenphp/conf.d/custom.ini:/usr/local/etc/php/conf.d/custom.ini
+    networks:
+      - internal
+    depends_on:
+      init:
+        condition: service_completed_successfully
+      backend:
+        condition: service_started
+
+  reverb:
+    build:
+      context: .
+      dockerfile: docker/frankenphp/Dockerfile
+      args:
+        WWWUSER: '${WWWUSER:-1000}'
+        WWWGROUP: '${WWWGROUP:-1000}'
+    image: zone14-backend
+    container_name: zone14-${APP_ENV:-dev}-reverb
+    restart: unless-stopped
+    entrypoint: ["/usr/local/bin/entrypoint.sh"]
+    command: php artisan reverb:start --host=0.0.0.0 --port=8080
+    ports:
+      - '${REVERB_PORT:-8080}:8080'
+    env_file:
+      - .env
+    volumes:
+      - ./src:/app
+      - ./docker/entrypoint.sh:/usr/local/bin/entrypoint.sh:ro
+      - ./docker/frankenphp/conf.d/custom.ini:/usr/local/etc/php/conf.d/custom.ini
+    networks:
+      - internal
+      - external
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  science-worker:
+    build:
+      context: ./science-worker
+      dockerfile: Dockerfile
+    image: zone14-science-worker
+    container_name: zone14-${APP_ENV:-dev}-science-worker
+    restart: unless-stopped
+    ports:
+      - "8001:8000"
+    env_file:
+      - .env
+    environment:
+      DB_HOST: '${DB_HOST:-postgres}'
+      REDIS_HOST: '${REDIS_HOST:-redis}'
+    networks:
+      - internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  init:
+    image: busybox
+    container_name: zone14-${APP_ENV:-dev}-init
+    command: >
+      sh -c "mkdir -p /data/storage/tenants /data/postgres /data/redis &&
+             mkdir -p /app/storage/logs /app/storage/framework/cache /app/storage/framework/sessions /app/storage/framework/views &&
+             chown -R 1000:1000 /data /app/storage &&
+             chmod -R 775 /data /app/storage"
+    volumes:
+      - ./data:/data
+      - ./src:/app
+    user: root
+
+networks:
+  internal:
+    driver: bridge
+    name: '${DOCKER_NETWORK_NAME:-zone14_network}'
+  external:
+    external: true
+    name: '${EXTERNAL_NETWORK_NAME:-debrand_network}'

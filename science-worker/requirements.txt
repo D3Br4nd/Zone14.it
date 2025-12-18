@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+sqlalchemy[asyncio]
+asyncpg
+redis
+numpy
+scipy
+pandas
+python-multipart
